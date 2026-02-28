@@ -29,14 +29,51 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
+import android.media.AudioAttributes
+import android.media.SoundPool
+
+import androidx.activity.compose.setContent
+
 class MainActivity : ComponentActivity() {
+
+    private lateinit var soundPool: SoundPool
+    private var dialSoundId: Int = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Setup low-latency sound engine
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+
+        soundPool = SoundPool.Builder()
+            .setMaxStreams(2)
+            .setAudioAttributes(audioAttributes)
+            .build()
+
+        dialSoundId = soundPool.load(this, R.raw.omnitrix_activate, 1)
+
         setContent {
-            OmnitrixScreen()
+            OmnitrixScreenWithSound(
+                onActivate = {
+                    soundPool.play(
+                        dialSoundId,
+                        1f,
+                        1f,
+                        0,
+                        0,
+                        1f
+                    )
+                }
+            )
         }
+    }
+
+    override fun onDestroy() {
+        soundPool.release()
+        super.onDestroy()
     }
 }
 
@@ -120,5 +157,27 @@ fun OmnitrixScreen() {
             )
 
         }
+    }
+}
+@Composable
+fun OmnitrixScreenWithSound(onActivate: () -> Unit) {
+
+    var trigger by remember { mutableStateOf(false) }
+
+    LaunchedEffect(trigger) {
+        if (trigger) {
+            onActivate()
+            trigger = false
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable {
+                trigger = true
+            }
+    ) {
+        OmnitrixScreen()
     }
 }
