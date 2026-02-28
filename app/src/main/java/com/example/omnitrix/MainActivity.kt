@@ -38,11 +38,11 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var soundPool: SoundPool
     private var dialSoundId: Int = 0
+    private var soundLoaded = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Setup low-latency sound engine
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
@@ -53,19 +53,28 @@ class MainActivity : ComponentActivity() {
             .setAudioAttributes(audioAttributes)
             .build()
 
+        // Listen for when sound finishes loading
+        soundPool.setOnLoadCompleteListener { _, _, status ->
+            if (status == 0) {
+                soundLoaded = true
+            }
+        }
+
         dialSoundId = soundPool.load(this, R.raw.omnitrix_activate, 1)
 
         setContent {
             OmnitrixScreenWithSound(
                 onActivate = {
-                    soundPool.play(
-                        dialSoundId,
-                        1f,
-                        1f,
-                        0,
-                        0,
-                        1f
-                    )
+                    if (soundLoaded) {
+                        soundPool.play(
+                            dialSoundId,
+                            1f,
+                            1f,
+                            1,
+                            0,
+                            1f
+                        )
+                    }
                 }
             )
         }
@@ -162,22 +171,59 @@ fun OmnitrixScreen() {
 @Composable
 fun OmnitrixScreenWithSound(onActivate: () -> Unit) {
 
-    var trigger by remember { mutableStateOf(false) }
+    // Controls text visibility
+    var showTransformedText by remember { mutableStateOf(false) }
 
-    LaunchedEffect(trigger) {
-        if (trigger) {
+    // Controls temporary flash boost
+    var activationBoost by remember { mutableFloatStateOf(0f) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "")
+
+    val idlePulse by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 0.85f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = ""
+    )
+
+    LaunchedEffect(showTransformedText) {
+
+        if (showTransformedText) {
+
+            // PLAY SOUND HERE — perfectly synced
             onActivate()
-            trigger = false
+
+            activationBoost = 0.6f
+            delay(300)
+            delay(1200)
+            activationBoost = 0f
+            showTransformedText = false
         }
     }
+
+    val brightness = idlePulse + activationBoost
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(Color.Black)
             .clickable {
-                trigger = true
-            }
+                showTransformedText = true
+            },
+        contentAlignment = Alignment.Center
     ) {
-        OmnitrixScreen()
+
+        Image(
+            painter = painterResource(id = R.drawable.omnitrix_symbol),
+            contentDescription = "Omnitrix Symbol",
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = brightness.coerceIn(0.1f, 5f)
+                }
+        )
     }
 }
