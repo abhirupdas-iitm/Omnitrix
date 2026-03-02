@@ -217,6 +217,7 @@ fun OmnitrixScreenWithSound(onActivate: () -> Unit) {
             .focusRequester(focusRequester)
             .focusable()   // REQUIRED
             .onRotaryScrollEvent {
+                println("ROTARY EVENT: ${it.verticalScrollPixels}")
                 dialAngle += it.verticalScrollPixels / 10f
                 true
             }
