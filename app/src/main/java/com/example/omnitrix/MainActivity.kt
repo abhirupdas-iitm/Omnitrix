@@ -1,49 +1,35 @@
 package com.example.omnitrix
 
-import androidx.compose.ui.input.rotary.onRotaryScrollEvent
-import androidx.compose.foundation.focusable
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusTarget
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.Image
-import androidx.compose.ui.res.painterResource
+import android.media.AudioAttributes
+import android.media.SoundPool
 import android.os.Bundle
+import android.view.InputDevice
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import kotlinx.coroutines.delay
-
-import android.media.AudioAttributes
-import android.media.SoundPool
-
-import androidx.activity.compose.setContent
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var soundPool: SoundPool
-    private var dialSoundId: Int = 0
+    private var activateSoundId: Int = 0
     private var soundLoaded = false
+
+    // Rotary state shared with Compose
+    private val dialAngleState = mutableFloatStateOf(0f)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,21 +44,19 @@ class MainActivity : ComponentActivity() {
             .setAudioAttributes(audioAttributes)
             .build()
 
-        // Listen for when sound finishes loading
         soundPool.setOnLoadCompleteListener { _, _, status ->
-            if (status == 0) {
-                soundLoaded = true
-            }
+            if (status == 0) soundLoaded = true
         }
 
-        dialSoundId = soundPool.load(this, R.raw.omnitrix_activate, 1)
+        activateSoundId = soundPool.load(this, R.raw.omnitrix_activate, 1)
 
         setContent {
-            OmnitrixScreenWithSound(
+            OmnitrixScreen(
+                dialAngle = dialAngleState.floatValue,
                 onActivate = {
                     if (soundLoaded) {
                         soundPool.play(
-                            dialSoundId,
+                            activateSoundId,
                             1f,
                             1f,
                             1,
@@ -85,6 +69,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // 🔥 Capture rotary directly from Android
+    override fun onGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.action == MotionEvent.ACTION_SCROLL &&
+            event.isFromSource(InputDevice.SOURCE_ROTARY_ENCODER)
+        ) {
+            val delta = event.getAxisValue(MotionEvent.AXIS_SCROLL)
+            dialAngleState.floatValue += delta * 10f
+            println("ROTARY CAPTURED: $delta")
+            return true
+        }
+        return super.onGenericMotionEvent(event)
+    }
+
     override fun onDestroy() {
         soundPool.release()
         super.onDestroy()
@@ -92,99 +89,13 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun OmnitrixScreen() {
-
-    // Controls text visibility
-    var showTransformedText by remember { mutableStateOf(false) }
-
-    // Controls temporary flash boost
-    var activationBoost by remember { mutableFloatStateOf(0f) }
-
-    // Idle breathing animation
-    val infiniteTransition = rememberInfiniteTransition(label = "")
-
-    val idlePulse by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 0.85f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = ""
-    )
-
-    // Activation sequence controller
-    LaunchedEffect(showTransformedText) {
-
-        if (showTransformedText) {
-
-            // Instant flash up
-            activationBoost = 0.6f
-
-            // Hold peak flash briefly
-            delay(300)
-
-            // Keep transformed state visible
-            delay(1200)
-
-            // Smooth return
-            activationBoost = 0f
-
-            // Hide text
-            showTransformedText = false
-        }
-    }
-
-    // Final brightness combines idle breathing + activation flash
-    val brightness = idlePulse + activationBoost
-
-    val coreColor = Color(
-        red = 0f,
-        green = brightness.coerceAtMost(1f),
-        blue = 0f,
-        alpha = 1f
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
-        contentAlignment = Alignment.Center
-    ) {
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black)
-                .clickable { showTransformedText = true },
-            contentAlignment = Alignment.Center
-        ) {
-
-            Image(
-                painter = painterResource(id = R.drawable.omnitrix_symbol),
-                contentDescription = "Omnitrix Symbol",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        alpha = brightness.coerceIn(0.1f, 5f)
-                    }
-            )
-
-        }
-    }
-}
-@Composable
-fun OmnitrixScreenWithSound(onActivate: () -> Unit) {
+fun OmnitrixScreen(
+    dialAngle: Float,
+    onActivate: () -> Unit
+) {
 
     var showTransformedText by remember { mutableStateOf(false) }
     var activationBoost by remember { mutableFloatStateOf(0f) }
-    var dialAngle by remember { mutableFloatStateOf(0f) }
-
-    val focusRequester = remember { FocusRequester() }
-
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "")
     val idlePulse by infiniteTransition.animateFloat(
@@ -214,13 +125,6 @@ fun OmnitrixScreenWithSound(onActivate: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .focusRequester(focusRequester)
-            .focusable()   // REQUIRED
-            .onRotaryScrollEvent {
-                println("ROTARY EVENT: ${it.verticalScrollPixels}")
-                dialAngle += it.verticalScrollPixels / 10f
-                true
-            }
             .clickable {
                 showTransformedText = true
             },
