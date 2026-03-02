@@ -1,5 +1,10 @@
 package com.example.omnitrix
 
+import androidx.compose.ui.input.rotary.onRotaryScrollEvent
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Image
@@ -171,14 +176,17 @@ fun OmnitrixScreen() {
 @Composable
 fun OmnitrixScreenWithSound(onActivate: () -> Unit) {
 
-    // Controls text visibility
     var showTransformedText by remember { mutableStateOf(false) }
-
-    // Controls temporary flash boost
     var activationBoost by remember { mutableFloatStateOf(0f) }
+    var dialAngle by remember { mutableFloatStateOf(0f) }
+
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "")
-
     val idlePulse by infiniteTransition.animateFloat(
         initialValue = 0.6f,
         targetValue = 0.85f,
@@ -190,12 +198,8 @@ fun OmnitrixScreenWithSound(onActivate: () -> Unit) {
     )
 
     LaunchedEffect(showTransformedText) {
-
         if (showTransformedText) {
-
-            // PLAY SOUND HERE — perfectly synced
             onActivate()
-
             activationBoost = 0.6f
             delay(300)
             delay(1200)
@@ -210,6 +214,12 @@ fun OmnitrixScreenWithSound(onActivate: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .focusRequester(focusRequester)
+            .focusable()   // REQUIRED
+            .onRotaryScrollEvent {
+                dialAngle += it.verticalScrollPixels / 10f
+                true
+            }
             .clickable {
                 showTransformedText = true
             },
@@ -223,6 +233,7 @@ fun OmnitrixScreenWithSound(onActivate: () -> Unit) {
                 .fillMaxSize()
                 .graphicsLayer {
                     alpha = brightness.coerceIn(0.1f, 5f)
+                    rotationZ = dialAngle
                 }
         )
     }
