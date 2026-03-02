@@ -1,5 +1,6 @@
 package com.example.omnitrix
 
+import kotlin.math.roundToInt
 import android.media.AudioAttributes
 import android.media.SoundPool
 import android.os.Bundle
@@ -93,6 +94,15 @@ fun OmnitrixScreen(
     dialAngle: Float,
     onActivate: () -> Unit
 ) {
+    val slotCount = 15
+    val slotAngle = 360f / slotCount
+
+// Normalize angle to 0..360 range
+    val normalizedAngle = ((dialAngle % 360f) + 360f) % 360f
+
+// Snap to nearest slot
+    val snappedIndex = (normalizedAngle / slotAngle).roundToInt() % slotCount
+    val snappedAngle = snappedIndex * slotAngle
 
     var showTransformedText by remember { mutableStateOf(false) }
     var activationBoost by remember { mutableFloatStateOf(0f) }
@@ -138,7 +148,7 @@ fun OmnitrixScreen(
                 .fillMaxSize()
                 .graphicsLayer {
                     alpha = brightness.coerceIn(0.1f, 5f)
-                    rotationZ = dialAngle
+                    rotationZ = snappedAngle
                 }
         )
     }
