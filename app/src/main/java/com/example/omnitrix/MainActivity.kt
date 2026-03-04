@@ -113,11 +113,10 @@ fun OmnitrixScreen(
     val slotCount = 15
     val slotAngle = 360f / slotCount
 
-    // Normalize angle to 0..360 range
-    val normalizedAngle = ((dialAngle % 360f) + 360f) % 360f
+    // Snap slot based on raw angle
+    val snappedIndex = (dialAngle / slotAngle).roundToInt()
 
-    // Snap to nearest slot
-    val snappedIndex = (normalizedAngle / slotAngle).roundToInt() % slotCount
+// Compute snapped angle without forcing 0–360 wrap
     val snappedAngle = snappedIndex * slotAngle
 
     val animatedAngle by animateFloatAsState(
@@ -130,12 +129,14 @@ fun OmnitrixScreen(
     )
 
     // Track previous slot to trigger tick sound
-    var previousSlot by remember { mutableIntStateOf(snappedIndex) }
+    val slot = ((snappedIndex % slotCount) + slotCount) % slotCount
 
-    LaunchedEffect(snappedIndex) {
-        if (snappedIndex != previousSlot) {
+    var previousSlot by remember { mutableIntStateOf(slot) }
+
+    LaunchedEffect(slot) {
+        if (slot != previousSlot) {
             onTick()
-            previousSlot = snappedIndex
+            previousSlot = slot
         }
     }
 
