@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var soundPool: SoundPool
     private var activateSoundId: Int = 0
+    private var tickSoundId: Int = 0
     private var soundLoaded = false
 
     // Rotary state shared with Compose
@@ -51,6 +52,7 @@ class MainActivity : ComponentActivity() {
         }
 
         activateSoundId = soundPool.load(this, R.raw.omnitrix_activate, 1)
+        tickSoundId = soundPool.load(this, R.raw.omnitrix_tick, 1)
 
         setContent {
             OmnitrixScreen(
@@ -66,12 +68,24 @@ class MainActivity : ComponentActivity() {
                             1f
                         )
                     }
+                },
+                onTick = {
+                    if (soundLoaded) {
+                        soundPool.play(
+                            tickSoundId,
+                            0.7f,
+                            0.7f,
+                            1,
+                            0,
+                            1f
+                        )
+                    }
                 }
             )
         }
     }
 
-    // 🔥 Capture rotary directly from Android
+    // Capture rotary directly from Android
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
         if (event.action == MotionEvent.ACTION_SCROLL &&
             event.isFromSource(InputDevice.SOURCE_ROTARY_ENCODER)
@@ -93,17 +107,19 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun OmnitrixScreen(
     dialAngle: Float,
-    onActivate: () -> Unit
+    onActivate: () -> Unit,
+    onTick: () -> Unit
 ) {
     val slotCount = 15
     val slotAngle = 360f / slotCount
 
-// Normalize angle to 0..360 range
+    // Normalize angle to 0..360 range
     val normalizedAngle = ((dialAngle % 360f) + 360f) % 360f
 
-// Snap to nearest slot
+    // Snap to nearest slot
     val snappedIndex = (normalizedAngle / slotAngle).roundToInt() % slotCount
     val snappedAngle = snappedIndex * slotAngle
+
     val animatedAngle by animateFloatAsState(
         targetValue = snappedAngle,
         animationSpec = tween(
@@ -112,6 +128,17 @@ fun OmnitrixScreen(
         ),
         label = "dialAnimation"
     )
+
+    // Track previous slot to trigger tick sound
+    var previousSlot by remember { mutableIntStateOf(snappedIndex) }
+
+    LaunchedEffect(snappedIndex) {
+        if (snappedIndex != previousSlot) {
+            onTick()
+            previousSlot = snappedIndex
+        }
+    }
+
     var showTransformedText by remember { mutableStateOf(false) }
     var activationBoost by remember { mutableFloatStateOf(0f) }
 
