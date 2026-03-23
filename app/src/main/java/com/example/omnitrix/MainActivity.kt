@@ -31,7 +31,6 @@ class MainActivity : ComponentActivity() {
     private var tickSoundId: Int = 0
     private var soundLoaded = false
 
-    // Rotary state shared with Compose
     private val dialAngleState = mutableFloatStateOf(0f)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,40 +58,24 @@ class MainActivity : ComponentActivity() {
                 dialAngle = dialAngleState.floatValue,
                 onActivate = {
                     if (soundLoaded) {
-                        soundPool.play(
-                            activateSoundId,
-                            1f,
-                            1f,
-                            1,
-                            0,
-                            1f
-                        )
+                        soundPool.play(activateSoundId, 1f, 1f, 1, 0, 1f)
                     }
                 },
                 onTick = {
                     if (soundLoaded) {
-                        soundPool.play(
-                            tickSoundId,
-                            0.7f,
-                            0.7f,
-                            1,
-                            0,
-                            1f
-                        )
+                        soundPool.play(tickSoundId, 0.7f, 0.7f, 1, 0, 1f)
                     }
                 }
             )
         }
     }
 
-    // Capture rotary directly from Android
     override fun onGenericMotionEvent(event: MotionEvent): Boolean {
         if (event.action == MotionEvent.ACTION_SCROLL &&
             event.isFromSource(InputDevice.SOURCE_ROTARY_ENCODER)
         ) {
             val delta = event.getAxisValue(MotionEvent.AXIS_SCROLL)
             dialAngleState.floatValue += delta * 10f
-            println("ROTARY CAPTURED: $delta")
             return true
         }
         return super.onGenericMotionEvent(event)
@@ -104,31 +87,32 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+enum class OmnitrixState {
+    Idle,
+    Activating,
+    DNA,
+    Flash
+}
+
 @Composable
 fun OmnitrixScreen(
     dialAngle: Float,
     onActivate: () -> Unit,
     onTick: () -> Unit
 ) {
+
     val slotCount = 15
     val slotAngle = 360f / slotCount
 
-    // Snap slot based on raw angle
     val snappedIndex = (dialAngle / slotAngle).roundToInt()
-
-// Compute snapped angle without forcing 0–360 wrap
     val snappedAngle = snappedIndex * slotAngle
 
     val animatedAngle by animateFloatAsState(
         targetValue = snappedAngle,
-        animationSpec = tween(
-            durationMillis = 120,
-            easing = FastOutSlowInEasing
-        ),
+        animationSpec = tween(120, easing = FastOutSlowInEasing),
         label = "dialAnimation"
     )
 
-    // Track previous slot to trigger tick sound
     val slot = ((snappedIndex % slotCount) + slotCount) % slotCount
 
     var previousSlot by remember { mutableIntStateOf(slot) }
@@ -140,28 +124,68 @@ fun OmnitrixScreen(
         }
     }
 
-    var showTransformedText by remember { mutableStateOf(false) }
+    var state by remember { mutableStateOf(OmnitrixState.Idle) }
+
+    val transition = updateTransition(state, label = "omnitrixTransition")
+
+    // 🔥 NEW: Hourglass movement
+    val hourglassOffset by transition.animateFloat(
+        transitionSpec = { tween(400, easing = FastOutSlowInEasing) },
+        label = "hourglassOffset"
+    ) { state ->
+        when (state) {
+            OmnitrixState.Idle -> 90f
+            OmnitrixState.Activating -> 30f
+            OmnitrixState.DNA -> -10f
+            OmnitrixState.Flash -> -10f
+        }
+    }
+
+    // 🔥 NEW: Center diamond visibility
+    val centerAlpha by transition.animateFloat(
+        transitionSpec = { tween(150) },
+        label = "centerAlpha"
+    ) { state ->
+        when (state) {
+            OmnitrixState.DNA,
+            OmnitrixState.Flash -> 1f
+            else -> 0f
+        }
+    }
+
+    val flashAlpha by transition.animateFloat(
+        transitionSpec = { tween(120) },
+        label = "flashAlpha"
+    ) {
+        if (it == OmnitrixState.Flash) 1f else 0f
+    }
+
     var activationBoost by remember { mutableFloatStateOf(0f) }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "")
+    val infiniteTransition = rememberInfiniteTransition()
     val idlePulse by infiniteTransition.animateFloat(
-        initialValue = 0.6f,
-        targetValue = 0.85f,
+        0.6f, 0.85f,
         animationSpec = infiniteRepeatable(
             animation = tween(1800),
             repeatMode = RepeatMode.Reverse
-        ),
-        label = ""
+        )
     )
 
-    LaunchedEffect(showTransformedText) {
-        if (showTransformedText) {
+    LaunchedEffect(state) {
+        if (state == OmnitrixState.Activating) {
+
             onActivate()
             activationBoost = 0.6f
+
             delay(300)
-            delay(1200)
+            state = OmnitrixState.DNA
+
+            delay(400)
+            state = OmnitrixState.Flash
+
+            delay(200)
             activationBoost = 0f
-            showTransformedText = false
+            state = OmnitrixState.Idle
         }
     }
 
@@ -172,20 +196,51 @@ fun OmnitrixScreen(
             .fillMaxSize()
             .background(Color.Black)
             .clickable {
-                showTransformedText = true
+                state = OmnitrixState.Activating
             },
         contentAlignment = Alignment.Center
     ) {
 
+        // 🔵 LEFT TRIANGLE
         Image(
-            painter = painterResource(id = R.drawable.omnitrix_symbol),
-            contentDescription = "Omnitrix Symbol",
+            painter = painterResource(R.drawable.hourglass_left),
+            contentDescription = null,
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
                     alpha = brightness.coerceIn(0.1f, 5f)
-                    rotationZ = animatedAngle
+                    translationX = -hourglassOffset
                 }
+        )
+
+        // 🔵 RIGHT TRIANGLE
+        Image(
+            painter = painterResource(R.drawable.hourglass_right),
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = brightness.coerceIn(0.1f, 5f)
+                    translationX = hourglassOffset
+                }
+        )
+
+        // 🔥 CENTER DIAMOND
+        Image(
+            painter = painterResource(R.drawable.omnitrix_center_diamond),
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = centerAlpha * brightness.coerceIn(0.1f, 5f)
+                }
+        )
+
+        // FLASH
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Green.copy(alpha = flashAlpha))
         )
     }
 }
