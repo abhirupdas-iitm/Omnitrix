@@ -206,7 +206,7 @@ fun OmnitrixScreen(
                 .fillMaxSize(0.9f)
                 .graphicsLayer {
                     scaleX = 1.4f
-                    scaleY = 1.15f
+                    scaleY = 1.3f
                     alpha = centerAlpha   // 🔥 THIS LINE FIXES EVERYTHING
                 }
         )
