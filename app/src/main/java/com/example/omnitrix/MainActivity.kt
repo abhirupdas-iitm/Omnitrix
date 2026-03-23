@@ -90,7 +90,6 @@ class MainActivity : ComponentActivity() {
 enum class OmnitrixState {
     Idle,
     Activating,
-    DNA,
     Flash
 }
 
@@ -128,36 +127,25 @@ fun OmnitrixScreen(
 
     val transition = updateTransition(state, label = "omnitrixTransition")
 
-    // 🔥 NEW: Hourglass movement
-    val hourglassOffset by transition.animateFloat(
-        transitionSpec = { tween(400, easing = FastOutSlowInEasing) },
-        label = "hourglassOffset"
-    ) { state ->
-        when (state) {
-            OmnitrixState.Idle -> 90f
-            OmnitrixState.Activating -> 30f
-            OmnitrixState.DNA -> -10f
-            OmnitrixState.Flash -> -10f
+    val baseAlpha by transition.animateFloat(
+        transitionSpec = { tween(200) },
+        label = "baseAlpha"
+    ) {
+        when (it) {
+            OmnitrixState.Activating -> 0.4f
+            OmnitrixState.Flash -> 0f
+            else -> 1f
         }
     }
 
-    // 🔥 NEW: Center diamond visibility
     val centerAlpha by transition.animateFloat(
-        transitionSpec = { tween(150) },
+        transitionSpec = { tween(250) },
         label = "centerAlpha"
-    ) { state ->
-        when (state) {
-            OmnitrixState.DNA,
+    ) {
+        when (it) {
             OmnitrixState.Flash -> 1f
             else -> 0f
         }
-    }
-
-    val flashAlpha by transition.animateFloat(
-        transitionSpec = { tween(120) },
-        label = "flashAlpha"
-    ) {
-        if (it == OmnitrixState.Flash) 1f else 0f
     }
 
     var activationBoost by remember { mutableFloatStateOf(0f) }
@@ -178,9 +166,6 @@ fun OmnitrixScreen(
             activationBoost = 0.6f
 
             delay(300)
-            state = OmnitrixState.DNA
-
-            delay(400)
             state = OmnitrixState.Flash
 
             delay(200)
@@ -201,46 +186,29 @@ fun OmnitrixScreen(
         contentAlignment = Alignment.Center
     ) {
 
-        // 🔵 LEFT TRIANGLE
+        // BASE SYMBOL
         Image(
-            painter = painterResource(R.drawable.hourglass_left),
+            painter = painterResource(R.drawable.omnitrix_symbol),
             contentDescription = null,
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    alpha = brightness.coerceIn(0.1f, 5f)
-                    translationX = -hourglassOffset
+                    rotationZ = animatedAngle
+                    alpha = baseAlpha * brightness.coerceIn(0.1f, 5f)
                 }
         )
 
-        // 🔵 RIGHT TRIANGLE
-        Image(
-            painter = painterResource(R.drawable.hourglass_right),
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    alpha = brightness.coerceIn(0.1f, 5f)
-                    translationX = hourglassOffset
-                }
-        )
-
-        // 🔥 CENTER DIAMOND
+        // 🔥 FIXED DIAMOND (NOW STATE CONTROLLED)
         Image(
             painter = painterResource(R.drawable.omnitrix_center_diamond),
             contentDescription = null,
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxSize(0.9f)
                 .graphicsLayer {
-                    alpha = centerAlpha * brightness.coerceIn(0.1f, 5f)
+                    scaleX = 1.4f
+                    scaleY = 1.4f
+                    alpha = centerAlpha   // 🔥 THIS LINE FIXES EVERYTHING
                 }
-        )
-
-        // FLASH
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Green.copy(alpha = flashAlpha))
         )
     }
 }
